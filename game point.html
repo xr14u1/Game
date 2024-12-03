@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird Mini-Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            background: #eee;
+            border: 2px solid #000;
+        }
+        button {
+            padding: 15px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Flappy Bird Mini-Game</h1>
+    <canvas id="gameCanvas"></canvas>
+    <button id="flyButton">Fly!</button>
+    <button id="reset">Restart Game</button>
+    <script>
+        const BOT_TOKEN = "7836884967:AAFq1Pq9Y1GU6uXmIBQyoNGxA7t8wjM4dGA"; // Your bot token
+        const urlParams = new URLSearchParams(window.location.search);
+        const CHAT_ID = urlParams.get("chat_id"); // Extract chat_id from the URL
+
+        if (!CHAT_ID) {
+            alert("Error: Chat ID not provided in the URL. Please open this game from your Telegram bot.");
+        }
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = 400;
+        canvas.height = 600;
+
+        let birdY = canvas.height / 2;
+        let birdVelocity = 0;
+        const gravity = 0.5;
+        const jumpStrength = -10;
+        const pipes = [];
+        let score = 0;
+        let gameRunning = true;
+
+        // Fly button functionality
+        document.getElementById("flyButton").addEventListener("click", () => {
+            if (gameRunning) birdVelocity = jumpStrength;
+        });
+
+        function addPipe() {
+            const pipeGap = 150;
+            const pipeHeight = Math.random() * (canvas.height - pipeGap - 50) + 50;
+            pipes.push({
+                x: canvas.width,
+                top: pipeHeight,
+                bottom: canvas.height - pipeHeight - pipeGap,
+            });
+        }
+
+        function updateGame() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw bird
+            birdVelocity += gravity;
+            birdY += birdVelocity;
+            ctx.fillStyle = "red";
+            ctx.fillRect(50, birdY, 20, 20);
+
+            // Check collision
+            if (birdY < 0 || birdY > canvas.height) endGame();
+
+            // Update pipes
+            pipes.forEach((pipe, index) => {
+                pipe.x -= 2;
+
+                if (pipe.x + 50 < 0) pipes.splice(index, 1);
+
+                // Draw pipes
+                ctx.fillStyle = "green";
+                ctx.fillRect(pipe.x, 0, 50, pipe.top);
+                ctx.fillRect(pipe.x, canvas.height - pipe.bottom, 50, pipe.bottom);
+
+                // Check collision with pipes
+                if (
+                    50 < pipe.x + 50 &&
+                    70 > pipe.x &&
+                    (birdY < pipe.top || birdY > canvas.height - pipe.bottom)
+                ) {
+                    endGame();
+                }
+
+                // Update score
+                if (pipe.x === 50) score++;
+            });
+
+            // Add new pipes
+            if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width / 2) {
+                addPipe();
+            }
+
+            // Draw score
+            ctx.fillStyle = "black";
+            ctx.font = "24px Arial";
+            ctx.fillText(`Score: ${score}`, 10, 30);
+
+            requestAnimationFrame(updateGame);
+        }
+
+        function endGame() {
+            gameRunning = false;
+            ctx.fillStyle = "black";
+            ctx.font = "30px Arial";
+            ctx.fillText("Game Over!", canvas.width / 2 - 80, canvas.height / 2);
+            ctx.fillText(`Final Score: ${score}`, canvas.width / 2 - 80, canvas.height / 2 + 40);
+            sendScoreToTelegram(score);
+        }
+
+        function sendScoreToTelegram(score) {
+            if (!CHAT_ID) return;
+
+            const message = `🎮 Game Over! Final Score: ${score}`;
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+            fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: CHAT_ID, text: message }),
+            })
+                .then((response) => {
+                    if (response.ok) {
+                        console.log("Score sent to Telegram!");
+                    } else {
+                        console.error("Failed to send score.");
+                    }
+                })
+                .catch((error) => console.error("Error sending score:", error));
+        }
+
+        document.getElementById("reset").addEventListener("click", () => {
+            birdY = canvas.height / 2;
+            birdVelocity = 0;
+            pipes.length = 0;
+            score = 0;
+            gameRunning = true;
+            updateGame();
+        });
+
+        addPipe();
+        updateGame();
+    </script>
+</body>
+</html>
